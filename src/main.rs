@@ -9,6 +9,7 @@ use std::io::prelude::*;
 use std::path::Path;
 use std::sync::{Arc, Mutex, Condvar};
 use std::thread;
+use std::time::Instant;
 
 
 ////////////////////////////////////////////////////////////
@@ -200,12 +201,12 @@ const IS_DEBUG: bool = false;
 const _FILEPATH_LARGE: &'static str = "att20_d.csv";
 const _FILEPATH_MEDIUM: &'static str = "att15_d.csv";
 const _FILEPATH_SMALL: &'static str = "att10_d.csv";
-const FILEPATH: &'static str = _FILEPATH_SMALL;
+const FILEPATH: &'static str = _FILEPATH_MEDIUM;
 
 const _NUM_CITIES_LARGE: usize = 20;
 const _NUM_CITIES_MEDIUM: usize = 15;
 const _NUM_CITIES_SMALL: usize = 10;
-const NUM_CITIES: usize = _NUM_CITIES_SMALL;
+const NUM_CITIES: usize = _NUM_CITIES_MEDIUM;
 
 const NUM_THREADS: usize = 8;
 
@@ -368,6 +369,7 @@ fn main() {
     let work_per_thread = divide_workload(work_load);
 
     let mut spawned_threads: Vec<thread::JoinHandle<_>> = Vec::new();
+    let now = Instant::now();
     for thread_number in 0..NUM_THREADS {
         let stack = work_per_thread[thread_number].clone();
         let local_dist_matrix = dist_matrix.clone();
@@ -384,5 +386,7 @@ fn main() {
         }
     }
 
+    let duration = now.elapsed();
+    println!("Total time taken: {}.{}s", duration.as_secs(), duration.subsec_nanos());
     BEST_FOUND.print();
 }
