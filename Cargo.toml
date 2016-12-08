@@ -1,0 +1,7 @@
+[package]
+name = "tsp"
+version = "0.1.0"
+authors = ["felipeamp <felipeamp@gmail.com>"]
+
+[dependencies]
+lazy_static = "0.2.2"
