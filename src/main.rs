@@ -197,15 +197,15 @@ unsafe impl Sync for Term { }
 
 const IS_DEBUG: bool = false;
 
-const FILEPATH_LARGE: &'static str = "att20_d.csv";
-const FILEPATH_MEDIUM: &'static str = "att15_d.csv";
-const FILEPATH_SMALL: &'static str = "att10_d.csv";
-const FILEPATH: &'static str = FILEPATH_SMALL;
+const _FILEPATH_LARGE: &'static str = "att20_d.csv";
+const _FILEPATH_MEDIUM: &'static str = "att15_d.csv";
+const _FILEPATH_SMALL: &'static str = "att10_d.csv";
+const FILEPATH: &'static str = _FILEPATH_SMALL;
 
-const NUM_CITIES_LARGE: usize = 20;
-const NUM_CITIES_MEDIUM: usize = 15;
-const NUM_CITIES_SMALL: usize = 10;
-const NUM_CITIES: usize = NUM_CITIES_SMALL;
+const _NUM_CITIES_LARGE: usize = 20;
+const _NUM_CITIES_MEDIUM: usize = 15;
+const _NUM_CITIES_SMALL: usize = 10;
+const NUM_CITIES: usize = _NUM_CITIES_SMALL;
 
 const NUM_THREADS: usize = 8;
 
