@@ -7,7 +7,7 @@ use std::error::Error;
 use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;
-use std::sync::{Mutex, Condvar};
+use std::sync::{Arc, Mutex, Condvar};
 use std::thread;
 
 
@@ -31,7 +31,7 @@ impl PartialPath {
         }
     }
 
-    fn push(&mut self, new_city: usize, dist_matrix: &[[u64; NUM_CITIES]; NUM_CITIES]) {
+    fn push(&mut self, new_city: usize, dist_matrix: Arc< [[u64; NUM_CITIES]; NUM_CITIES] >) {
         if new_city > self.visited.len() {
             panic!("New city ({}) is larger than last city index ({}).",
                    new_city,
@@ -45,7 +45,7 @@ impl PartialPath {
         self.visited[new_city] = true;
     }
 
-    fn close_tour(&mut self, dist_matrix: &[[u64; NUM_CITIES]; NUM_CITIES]) {
+    fn close_tour(&mut self, dist_matrix: Arc< [[u64; NUM_CITIES]; NUM_CITIES] >) {
         self.cost_so_far += dist_matrix[TOUR_START][*self.order_visited.last().unwrap()];
         self.order_visited.push(TOUR_START);
     }
@@ -249,7 +249,7 @@ fn load_dist_matrix(path: &Path) -> [[u64; NUM_CITIES]; NUM_CITIES] {
     dist_matrix
 }
 
-fn bfs(dist_matrix: &[[u64; NUM_CITIES]; NUM_CITIES]) -> VecDeque<PartialPath> {
+fn bfs(dist_matrix: Arc< [[u64; NUM_CITIES]; NUM_CITIES] >) -> VecDeque<PartialPath> {
     let mut starting_path = PartialPath::new();
     starting_path.order_visited.push(TOUR_START);
     starting_path.visited[TOUR_START] = true;
@@ -264,7 +264,7 @@ fn bfs(dist_matrix: &[[u64; NUM_CITIES]; NUM_CITIES]) -> VecDeque<PartialPath> {
                 continue;
             }
             let mut new_path = curr_path.clone();
-            new_path.push(next_city, dist_matrix);
+            new_path.push(next_city, dist_matrix.clone());
             ret.push_back(new_path);
         }
     }
@@ -310,7 +310,7 @@ fn split_stack(stack: &mut Vec<PartialPath>) -> Vec<PartialPath> {
     new_stack_2
 }
 
-fn dfs(mut stack: Vec<PartialPath>, dist_matrix: [[u64; NUM_CITIES]; NUM_CITIES],
+fn dfs(mut stack: Vec<PartialPath>, dist_matrix: Arc< [[u64; NUM_CITIES]; NUM_CITIES] >,
        best_found: &BestFound, term: &Term) {
     loop {
         while !stack.is_empty() {
@@ -322,7 +322,7 @@ fn dfs(mut stack: Vec<PartialPath>, dist_matrix: [[u64; NUM_CITIES]; NUM_CITIES]
             let mut curr_path = stack.pop().unwrap();
             if curr_path.order_visited.len() == NUM_CITIES {
                 // This path is complete. Let's close the tour and update best_found
-                curr_path.close_tour(&dist_matrix);
+                curr_path.close_tour(dist_matrix.clone());
                 println!("Completed a path with cost = {}", curr_path.cost_so_far);
                 if curr_path.cost_so_far < best_found.read_best() {
                     println!("Best path found so far!");
@@ -335,7 +335,7 @@ fn dfs(mut stack: Vec<PartialPath>, dist_matrix: [[u64; NUM_CITIES]; NUM_CITIES]
                     continue;
                 }
                 let mut new_path = curr_path.clone();
-                new_path.push(new_city, &dist_matrix);
+                new_path.push(new_city, dist_matrix.clone());
                 if new_path.cost_so_far < BEST_FOUND.read_best() {
                     stack.push(new_path);
                 }
@@ -348,9 +348,8 @@ fn dfs(mut stack: Vec<PartialPath>, dist_matrix: [[u64; NUM_CITIES]; NUM_CITIES]
 }
 
 fn main() {
-    let dist_matrix: [[u64; NUM_CITIES]; NUM_CITIES] = load_dist_matrix(
-        &Path::new(".").join("..").join(FILEPATH));
-    let work_load = bfs(&dist_matrix);
+    let dist_matrix = Arc::new(load_dist_matrix(&Path::new(FILEPATH)));
+    let work_load = bfs(dist_matrix.clone());
     let work_per_thread = divide_workload(work_load);
 
     let mut spawned_threads: Vec<thread::JoinHandle<_>> = Vec::new();
