@@ -134,7 +134,6 @@ impl Term {
                 unsafe {
                     *(self.stack_is_empty.get()) = false;
                 }
-                drop(new_stack_guard);
                 self.term_cond_var.notify_one();
             }
             return true;
@@ -149,32 +148,38 @@ impl Term {
         unsafe {
             if *thread_waiting_p == NUM_THREADS - 1 {
                 *thread_waiting_p += 1;
-                println!("ALL THREADS FINISHED!");
-                println!("Last thread was {}", thread::current().name().unwrap());
-                drop(new_stack_guard);
-                self.term_cond_var.notify_one();
-                BEST_FOUND.print();
+                if IS_DEBUG {
+                    println!("ALL THREADS FINISHED!");
+                    println!("Last thread was {}", thread::current().name().unwrap());
+                }
+                self.term_cond_var.notify_all();
                 return true;
             } else {
                 *thread_waiting_p += 1;
-                println!("{} THREADS WAITING!", *thread_waiting_p);
-                println!("Last thread was {}", thread::current().name().unwrap());
+                if IS_DEBUG {
+                    println!("{} THREAD(S) WAITING!", *thread_waiting_p);
+                    println!("Last thread was {}", thread::current().name().unwrap());
+                }
                 let stack_is_empty_p = self.stack_is_empty.get();
-                while *stack_is_empty_p {
+                while *stack_is_empty_p && *thread_waiting_p < NUM_THREADS {
                     new_stack_guard = self.term_cond_var.wait(new_stack_guard).unwrap();
                 }
-                println!("THREAD {} WOKEN UP!", thread::current().name().unwrap());
+                if IS_DEBUG {
+                    println!("THREAD {} WOKEN UP!", thread::current().name().unwrap());
+                }
                 if *thread_waiting_p < NUM_THREADS {
-                    println!("FOUND NEW STACK!");
+                    if IS_DEBUG {
+                        println!("FOUND NEW STACK!");
+                    }
                     *out_stack = (*new_stack_guard).clone();
                     *new_stack_guard = Vec::new();
                     *stack_is_empty_p = true;
                     *thread_waiting_p -= 1;
                     return false;
                 } else {
-                    println!("FINISHING THREAD {}!", thread::current().name().unwrap());
-                    drop(new_stack_guard);
-                    self.term_cond_var.notify_one();
+                    if IS_DEBUG {
+                        println!("FINISHING THREAD {}!", thread::current().name().unwrap());
+                    }
                     return true;
                 }
             }
@@ -190,15 +195,17 @@ unsafe impl Sync for Term { }
 // Static's and Const's
 ////////////////////////////////////////////////////////////
 
+const IS_DEBUG: bool = false;
+
 const FILEPATH_LARGE: &'static str = "att20_d.csv";
 const FILEPATH_MEDIUM: &'static str = "att15_d.csv";
 const FILEPATH_SMALL: &'static str = "att10_d.csv";
-const FILEPATH: &'static str = FILEPATH_MEDIUM;
+const FILEPATH: &'static str = FILEPATH_SMALL;
 
 const NUM_CITIES_LARGE: usize = 20;
 const NUM_CITIES_MEDIUM: usize = 15;
 const NUM_CITIES_SMALL: usize = 10;
-const NUM_CITIES: usize = NUM_CITIES_MEDIUM;
+const NUM_CITIES: usize = NUM_CITIES_SMALL;
 
 const NUM_THREADS: usize = 8;
 
@@ -236,9 +243,13 @@ fn load_dist_matrix(path: &Path) -> [[u64; NUM_CITIES]; NUM_CITIES] {
     // in NUM_CITIES buckets
     let mut dist_matrix: [[u64; NUM_CITIES]; NUM_CITIES] = [[0; NUM_CITIES]; NUM_CITIES];
     let split = s.split("\n");
+    if IS_DEBUG {
+        println!("Distance Matrix:");
+    }
     for (row_index, line) in split.enumerate() {
-        // DEBUG:
-        // println!("{}", line);
+        if IS_DEBUG {
+            println!("{}", line);
+        }
         if line.len() == 0 {
             continue;
         }
@@ -323,9 +334,13 @@ fn dfs(mut stack: Vec<PartialPath>, dist_matrix: Arc< [[u64; NUM_CITIES]; NUM_CI
             if curr_path.order_visited.len() == NUM_CITIES {
                 // This path is complete. Let's close the tour and update best_found
                 curr_path.close_tour(dist_matrix.clone());
-                println!("Completed a path with cost = {}", curr_path.cost_so_far);
+                if IS_DEBUG {
+                    println!("Completed a path with cost = {}", curr_path.cost_so_far);
+                }
                 if curr_path.cost_so_far < best_found.read_best() {
-                    println!("Best path found so far!");
+                    if IS_DEBUG {
+                        println!("Best path found so far!");
+                    }
                     best_found.update_if_best(curr_path);
                 }
                 continue;
@@ -364,6 +379,10 @@ fn main() {
 
     for (thread_index, child) in spawned_threads.into_iter().enumerate() {
         let _ = child.join();
-        println!("Thread {} has joined!", thread_index + 1);
+        if IS_DEBUG {
+            println!("Thread {} has joined!", thread_index + 1);
+        }
     }
+
+    BEST_FOUND.print();
 }
