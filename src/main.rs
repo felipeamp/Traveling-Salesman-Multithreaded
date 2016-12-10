@@ -93,7 +93,7 @@ impl BestFound {
         println!("");
         println!("The best tour is:");
         let best_tour_guard = BEST_FOUND.tour.lock().unwrap();
-        for city_index in (*best_tour_guard).iter() {
+        for city_index in &(*best_tour_guard) {
             println!("\t {}", city_index + 1);
         }
         println!("-----------------------------------------------------");
@@ -154,7 +154,7 @@ impl Term {
                     println!("Last thread was {}", thread::current().name().unwrap());
                 }
                 self.term_cond_var.notify_all();
-                return true;
+                true
             } else {
                 *thread_waiting_p += 1;
                 if IS_DEBUG {
@@ -176,12 +176,12 @@ impl Term {
                     *new_stack_guard = Vec::new();
                     *stack_is_empty_p = true;
                     *thread_waiting_p -= 1;
-                    return false;
+                    false
                 } else {
                     if IS_DEBUG {
                         println!("FINISHING THREAD {}!", thread::current().name().unwrap());
                     }
-                    return true;
+                    true
                 }
             }
         }
@@ -234,16 +234,14 @@ fn load_dist_matrix(path: &Path) -> [[u64; NUM_CITIES]; NUM_CITIES] {
 
     // Read the file contents into a string, returns `io::Result<usize>`
     let mut s = String::new();
-    match file.read_to_string(&mut s) {
-        Err(why) => panic!("couldn't read {}: {}", path.to_str().unwrap(),
-                                                   why.description()),
-        Ok(_) => (),
-    };
+    if let Err(why) = file.read_to_string(&mut s) {
+        panic!("couldn't read {}: {}", path.to_str().unwrap(), why.description());
+    }
 
     // Split s in NUM_CITIES lines, remove leading/trailing whitespace from each and split
     // in NUM_CITIES buckets
     let mut dist_matrix: [[u64; NUM_CITIES]; NUM_CITIES] = [[0; NUM_CITIES]; NUM_CITIES];
-    let split = s.split("\n");
+    let split = s.split('\n');
     if IS_DEBUG {
         println!("Distance Matrix:");
     }
@@ -251,10 +249,10 @@ fn load_dist_matrix(path: &Path) -> [[u64; NUM_CITIES]; NUM_CITIES] {
         if IS_DEBUG {
             println!("{}", line);
         }
-        if line.len() == 0 {
+        if line.is_empty() {
             continue;
         }
-        for (column_index, word) in line.trim().split(",").enumerate() {
+        for (column_index, word) in line.trim().split(',').enumerate() {
             dist_matrix[row_index][column_index] = word.parse().unwrap();
         }
     }
@@ -296,8 +294,8 @@ fn divide_workload(work_load: VecDeque<PartialPath>) -> Vec<Vec<PartialPath>> {
         work_sent_frac += work_per_thread;
         let mut curr_vec_work: Vec<PartialPath> = Vec::new();
         let work_range_limit: usize = work_sent_frac.floor() as usize;
-        for index in work_sent..work_range_limit {
-            curr_vec_work.push(work_load[index].clone());
+        for item in work_load.iter().take(work_range_limit).skip(work_sent) {
+            curr_vec_work.push(item.clone());
         }
         ret.push(curr_vec_work);
         work_sent = work_sent_frac.floor() as usize;
@@ -326,10 +324,8 @@ fn dfs(mut stack: Vec<PartialPath>, dist_matrix: Arc< [[u64; NUM_CITIES]; NUM_CI
        best_found: &BestFound, term: &Term) {
     loop {
         while !stack.is_empty() {
-            if term.has_thread_waiting() && stack.len() > 2 {
-                if term.push_stack(&mut stack) {
-                    continue;
-                }
+            if term.has_thread_waiting() && stack.len() > 2 && term.push_stack(&mut stack) {
+                continue;
             }
             let mut curr_path = stack.pop().unwrap();
             if curr_path.order_visited.len() == NUM_CITIES {
@@ -364,14 +360,14 @@ fn dfs(mut stack: Vec<PartialPath>, dist_matrix: Arc< [[u64; NUM_CITIES]; NUM_CI
 }
 
 fn main() {
-    let dist_matrix = Arc::new(load_dist_matrix(&Path::new(FILEPATH)));
+    let dist_matrix = Arc::new(load_dist_matrix(Path::new(FILEPATH)));
     let work_load = bfs(dist_matrix.clone());
     let work_per_thread = divide_workload(work_load);
 
     let mut spawned_threads: Vec<thread::JoinHandle<_>> = Vec::new();
     let now = Instant::now();
-    for thread_number in 0..NUM_THREADS {
-        let stack = work_per_thread[thread_number].clone();
+    for (thread_number, orig_stack) in work_per_thread.iter().enumerate().take(NUM_THREADS) {
+        let stack = orig_stack.clone();
         let local_dist_matrix = dist_matrix.clone();
         spawned_threads.push(thread::Builder::new().
             name(format!("child_{}", thread_number + 1).to_string()).spawn(
